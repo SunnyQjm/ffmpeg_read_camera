@@ -10,6 +10,7 @@ extern "C" {
 #include <libswscale/swscale.h>
 #include <libavdevice/avdevice.h>
 #include <libavutil/avutil.h>
+#include <libavutil/imgutils.h>
 }
 
 #define OUTPUT_YUV420P 0
@@ -90,6 +91,7 @@ int main() {
 
     pCodecCtx = pFormatContext->streams[videoIndex]->codec;
     pCodec = avcodec_find_decoder(pCodecCtx->codec_id);
+    cout << "codec_id: " << pCodecCtx->codec_id << endl;
     if (pCodec == nullptr) {
         cout << "Codec not found." << endl;
         return -1;
@@ -101,14 +103,14 @@ int main() {
     }
 
     AVFrame *pFrame, *pFrameYUV;
-    pFrame = avcodec_alloc_frame();
-    pFrameYUV = avcodec_alloc_frame();
+    pFrame = av_frame_alloc();
+    pFrameYUV = av_frame_alloc();
     int screenW = pCodecCtx->width;
     int screenH = pCodecCtx->height;
     unsigned char *outBuffer = nullptr;
-    outBuffer = (unsigned char *) av_malloc(avpicture_get_size(PIX_FMT_YUV420P, pCodecCtx->width, pCodecCtx->height));
+    outBuffer = (unsigned char *) av_malloc(av_image_get_buffer_size(AV_PIX_FMT_YUV420P, pCodecCtx->width, pCodecCtx->height, 1));
 
-    avpicture_fill((AVPicture *) pFrameYUV, outBuffer, PIX_FMT_YUV420P, pCodecCtx->width, pCodecCtx->height);
+    av_image_fill_arrays(pFrameYUV->data, pFrameYUV->linesize, outBuffer, AV_PIX_FMT_YUV420P, pCodecCtx->width, pCodecCtx->height, 1);
 
     /////////////////////////////////////////////////////////////
     //////// SDL
@@ -120,10 +122,10 @@ int main() {
 
 //    SDL_Create
 
-    AVPacket *packet = (AVPacket *) av_malloc(sizeof(AVPacket));
+    auto *packet = (AVPacket *) av_malloc(sizeof(AVPacket));
     SwsContext *imageConvertCtx;
     imageConvertCtx = sws_getContext(pCodecCtx->width, pCodecCtx->height, pCodecCtx->pix_fmt, pCodecCtx->width,
-                                     pCodecCtx->height, PIX_FMT_YUV420P, SWS_BICUBIC, nullptr,
+                                     pCodecCtx->height, AV_PIX_FMT_YUV420P, SWS_BICUBIC, nullptr,
                                      nullptr, nullptr);
     SDL_Texture *texture = SDL_CreateTexture(sdl2Helper.getRenderer(), SDL_PIXELFORMAT_YV12,
                                              SDL_TEXTUREACCESS_STREAMING, pCodecCtx->width, pCodecCtx->height);
@@ -169,7 +171,7 @@ int main() {
                                 ->delay(40);
                     }
                 }
-                av_free_packet(packet);
+                av_packet_unref(packet);
             } else {
                 thread_exit = 1;
             }
